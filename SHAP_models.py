@@ -27,6 +27,16 @@ def main():
         # Select target variable
         target_variable = st.selectbox("Select the target variable", df.columns)
 
+        # Provide instructional messages based on the nature of the target variable
+        st.info(f"The selected target variable '{target_variable}' is crucial for determining the type of model. "
+                "Consider the nature of your target variable and choose the model type accordingly. "
+                "For example, if you are predicting categories or labels (e.g., 'Red', 'Blue', 'Green'), choose a classifier model. "
+                "If you are predicting numeric values (e.g., 'Sales', 'Temperature', 'Price'), choose a regressor model using the box below.")
+
+
+        # Allow the user to choose the model type (Classifier or Regressor)
+        model_type = st.radio("Select Model Type", ["Classifier", "Regressor"])
+
         # Select feature variables
         feature_variables = st.multiselect("Select feature variables", df.columns)
 
@@ -34,43 +44,39 @@ def main():
         random_state = st.slider("Random State", 0, 100, 42)
         test_size = st.slider("Test Size", 0.1, 0.5, 0.2, 0.01)
 
+        # Handle missing values
+        missing_values_option = st.selectbox("Handle Missing Values:", ["Exclude", "Impute (Mean)"])
+
+        if missing_values_option == "Impute (Mean)":
+            # Impute missing values with mean
+            df = df.fillna(df.mean())
+        elif missing_values_option == "Exclude":
+            # Exclude rows with missing values
+            df = df.dropna()
+
         if st.button("Generate SHAP Plots"):
-            # Check if the target variable is categorical or continuous
-            if df[target_variable].dtype == 'O':  # 'O' represents object data type, which is often used for categorical variables
-                # Convert the target variable to numeric labels for classification
+            if model_type == "Classifier":
                 label_encoder = LabelEncoder()
                 df[target_variable] = label_encoder.fit_transform(df[target_variable])
-
-                # Train a simple decision tree classification model with adjustable parameters
                 model = train_classification_model(df, target_variable, feature_variables, random_state, test_size)
-
-                # Perform SHAP analysis
                 shap_values, expected_value, feature_names = shap_analysis(model, df[feature_variables])
-
-                # Display summary of classification results
                 display_classification_results(model, df, target_variable, feature_variables)
-
             else:
-                # Train a simple decision tree regression model with adjustable parameters
                 model = train_regression_model(df, target_variable, feature_variables, random_state, test_size)
-
-                # Perform SHAP analysis
                 shap_values, expected_value, feature_names = shap_analysis(model, df[feature_variables])
-
-                # Display summary of regression results
                 display_regression_results(model, df, target_variable, feature_variables)
 
-            # Plot SHAP summary plot
+                # Display SHAP Dependence Plots only for regressor models
+                st.subheader("SHAP Dependence Plots")
+                for feature in feature_names:
+                    shap.dependence_plot(feature, shap_values, df[feature_variables], show=False)
+                    st.pyplot()
+
             st.subheader("SHAP Summary Plot")
             plot_summary(shap_values, feature_names)
 
-            # Plot feature importances
             st.subheader("Feature Importances Plot")
             plot_feature_importances(model, feature_variables)
-
-            # Plot SHAP dependence plots
-            st.subheader("SHAP Dependence Plots")
-            plot_dependence(shap_values, df[feature_variables], feature_names)
 
 def load_data(uploaded_file):
     if uploaded_file.name.endswith('csv'):
